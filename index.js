@@ -3,7 +3,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const app = express();
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 5000;
 
 app.use(cors());
@@ -16,7 +16,7 @@ function verifyJWT(req, res, next){
       return res.status(401).send({message: 'unauthorized access'});
   }
   const token = authoHeader.split(' ')[1];
-  jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) =>{
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) =>{
       if(err){
           return res.status(403).send({message:'forbidden access'});
       }
@@ -48,6 +48,7 @@ async function run(){
       }
     }
 
+    // get data from service 
     app.get('/service', async(req, res)=>{
       const query = {};
       const cursor = servicesCollection.find(query).project({title:1});
@@ -85,7 +86,7 @@ async function run(){
       res.send({admin: isAdmin});
     })
 
-    app.put('/user/admin/:email', async(req, res)=>{ //verifyJWT, verifyAdmin,
+    app.put('/user/admin/:email', verifyJWT, verifyAdmin, async(req, res)=>{ //verifyJWT, verifyAdmin,
         const email = req.params.email;
         const filter = {email:email};
         const updateDoc = {
@@ -109,17 +110,25 @@ async function run(){
     })
 
     // show data at dashboard
-    app.get('/patient',  async(req, res)=>{//verifyJWT, verifyAdmin,
+    app.get('/booking', verifyJWT, verifyAdmin, async(req, res)=>{//verifyJWT, verifyAdmin,
       const patient = req.query.patient;
       const decodedEmail = req.decoded.email;
+      console.log(decodedEmail);
       if(patient === decodedEmail){
         const query = {patient:patient};
         const patientBooking = await bookingCollection.find(query).toArray();
-        res.send(patientBooking); 
+       return res.send(patientBooking); 
       } else{
         return res.status(403).send({message:'forbidden access'});
       }
     });
+
+    app.get('/booking/:id', async(req, res)=>{
+      const id = req.params.id;
+      const query = {_id:ObjectId(id)};
+      const booking = await bookingCollection.findOne(query);
+      res.send(booking);
+    })
 
     // booking post 
     app.post('/booking', async (req, res)=>{
@@ -138,13 +147,13 @@ async function run(){
   });
 
   // add doctors
-  app.post('/doctor', async (req, res)=>{ //verifyJWT, verifyAdmin,
+  app.post('/doctor', verifyJWT, verifyAdmin, async (req, res)=>{ //verifyJWT, verifyAdmin,
     const doctor = req.body;
     const result = await doctorCollection.insertOne(doctor);
     res.send(result);
   });
 
-  app.delete('/doctor/:email', async (req, res)=>{//verifyJWT, verifyAdmin,
+  app.delete('/doctor/:email', verifyJWT, verifyAdmin, async (req, res)=>{//verifyJWT, verifyAdmin,
     const email = req.params.email;
     const filter = {email:email};
     const result = await doctorCollection.delete(filter);
@@ -152,7 +161,7 @@ async function run(){
   })
 
   // get doctors
-  app.get('/doctor', async(req, res)=>{//verifyJWT, verifyAdmin,
+  app.get('/doctor', verifyJWT, verifyAdmin, async(req, res)=>{//verifyJWT, verifyAdmin,
     // const doctors = await doctorCollection.find().toArray(); // one line
     const query = {};
       const cursor = doctorCollection.find(query);
