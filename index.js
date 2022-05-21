@@ -2,6 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
+const nodemailer = require("nodemailer");
+const stripe = require('stripe')(process.env.STRIPE_TEST_KEY);
+
 const app = express();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 5000;
@@ -26,6 +29,48 @@ function verifyJWT(req, res, next){
   })
 }
 
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth:{
+    user: process.env.EMAIL_SENDER_KEY,
+    pass: process.env.EMAIL_SENDER_PASS
+  }
+});
+
+function sendAppointmentMail(booking) {
+    const {patient, patientName, treatment, date, slot} = booking;
+
+const mailOptons = {
+  from: process.env.EMAIL_SENDER_KEY, 
+  to: patient, 
+  subject: `Your appointment for ${treatment} on ${date} at ${slot} is confirmed`,
+  text: `Your appointment for ${treatment} on ${date} at ${slot} is confirmed`,
+  html: `
+      <div>
+        <p>Hello, ${patientName},</p>
+        <h3>Your appointment for ${treatment} is confirmed</h3>
+        <p>Looking forward to see you on ${date} at ${slot}</p>
+        <h4 className="mt-10">Our Address</h4>
+        <p>Andor kella, Bandorbagh</p>
+        <p>Bangladesh</p>
+        <a href="/">unsuscribed</a>
+      </div>
+    `
+};
+
+transporter.sendMail(mailOptons, function(err, data){
+  if(err){
+    console.log('something is wrong', err);
+  } else{
+    console.log('Email sent', data);
+  }
+});
+
+}
+
+
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.wij4k.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
@@ -47,6 +92,22 @@ async function run(){
         res.status(403).send({message:'forbidden'});
       }
     }
+
+    app.post('/create-payment-intent', verifyJWT, async (req, res)=>{
+      const service = req.body;
+      const price = service.price;
+      const amount = price*100;
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount:amount,
+        currency:'usd',
+        payment_method_types:['card']
+      });
+
+      res.send({
+        clientSecret:paymentIntent.client_secret,
+      })
+
+    })
 
     // get data from service 
     app.get('/service', async(req, res)=>{
@@ -143,6 +204,7 @@ async function run(){
         return res.send({success:false, booking: exists});
       }
       const result = await bookingCollection.insertOne(booking);
+      sendAppointmentMail(booking);
      return res.send({success: true, result});
   });
 
@@ -156,16 +218,16 @@ async function run(){
   app.delete('/doctor/:email', verifyJWT, verifyAdmin, async (req, res)=>{//verifyJWT, verifyAdmin,
     const email = req.params.email;
     const filter = {email:email};
-    const result = await doctorCollection.delete(filter);
+    const result = await doctorCollection.deleteOne(filter);
     res.send(result);
   })
 
   // get doctors
   app.get('/doctor', verifyJWT, verifyAdmin, async(req, res)=>{//verifyJWT, verifyAdmin,
-    // const doctors = await doctorCollection.find().toArray(); // one line
-    const query = {};
-      const cursor = doctorCollection.find(query);
-      const doctors = await cursor.toArray();
+    const doctors = await doctorCollection.find().toArray(); // one line
+    // const query = {};
+    //   const cursor = doctorCollection.find(query);
+    //   const doctors = await cursor.toArray();
       res.send(doctors);
   })
 
