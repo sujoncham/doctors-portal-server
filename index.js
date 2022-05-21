@@ -82,6 +82,7 @@ async function run(){
     const bookingCollection = client.db('doctorsPortal').collection('patient');
     const userCollection = client.db('doctorsPortal').collection('users');
     const doctorCollection = client.db('doctorsPortal').collection('doctors');
+    const paymentCollection = client.db('doctorsPortal').collection('payments');
 
     const verifyAdmin = async(req, res, next) =>{
       const requester = req.decoded.email;
@@ -189,6 +190,21 @@ async function run(){
       const query = {_id:ObjectId(id)};
       const booking = await bookingCollection.findOne(query);
       res.send(booking);
+    })
+
+    app.patch('/booking/:id', async (req, res)=>{
+      const id = req.params.id;
+      const payment = req.body;
+      const filter = {_id: ObjectId(id)};
+      const updatedDoc = {
+        $set: {
+          paid:true,
+          transactionId:payment.transactionId
+        }
+      }
+      const result = await paymentCollection.insertOne(payment);
+      const updateBooking = await bookingCollection.updateOne(filter, updatedDoc);
+      res.send(updateBooking);
     })
 
     // booking post 
