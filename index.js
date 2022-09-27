@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
-const nodemailer = require("nodemailer");
 const stripe = require('stripe')(process.env.STRIPE_TEST_KEY);
 
 const app = express();
@@ -28,47 +27,6 @@ function verifyJWT(req, res, next){
       next();
   })
 }
-
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth:{
-    user: process.env.EMAIL_SENDER_KEY,
-    pass: process.env.EMAIL_SENDER_PASS
-  }
-});
-
-function sendAppointmentMail(booking) {
-    const {patient, patientName, treatment, date, slot} = booking;
-
-const mailOptons = {
-  from: process.env.EMAIL_SENDER_KEY, 
-  to: patient, 
-  subject: `Your appointment for ${treatment} on ${date} at ${slot} is confirmed`,
-  text: `Your appointment for ${treatment} on ${date} at ${slot} is confirmed`,
-  html: `
-      <div>
-        <p>Hello, ${patientName},</p>
-        <h3>Your appointment for ${treatment} is confirmed</h3>
-        <p>Looking forward to see you on ${date} at ${slot}</p>
-        <h4 className="mt-10">Our Address</h4>
-        <p>Andor kella, Bandorbagh</p>
-        <p>Bangladesh</p>
-        <a href="/">unsuscribed</a>
-      </div>
-    `
-};
-
-transporter.sendMail(mailOptons, function(err, data){
-  if(err){
-    console.log('something is wrong', err);
-  } else{
-    console.log('Email sent', data);
-  }
-});
-
-}
-
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.wij4k.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
@@ -220,7 +178,6 @@ async function run(){
         return res.send({success:false, booking: exists});
       }
       const result = await bookingCollection.insertOne(booking);
-      sendAppointmentMail(booking);
      return res.send({success: true, result});
   });
 
@@ -245,6 +202,13 @@ async function run(){
     //   const cursor = doctorCollection.find(query);
     //   const doctors = await cursor.toArray();
       res.send(doctors);
+  });
+
+  app.get('/doctor/:email', async(req, res)=>{
+    const email = req.params.email;
+    const query = {email: email};
+    const result = await doctorCollection.findOne(query);
+    res.send(result);
   })
 
 
