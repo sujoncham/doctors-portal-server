@@ -71,7 +71,7 @@ async function run(){
     // get data from service 
     app.get('/service', async(req, res)=>{
       const query = {};
-      const cursor = servicesCollection.find(query).project({title:1});
+      const cursor = servicesCollection.find(query);
       const services = await cursor.toArray();
       res.send(services);
     });
@@ -94,12 +94,12 @@ async function run(){
     });
 
      // get users 
-     app.get('/user', async(req, res)=>{
+     app.get('/user', verifyJWT, verifyAdmin, async(req, res)=>{
       const users = await userCollection.find().toArray();
       res.send(users);
     });
 
-    app.get('/admin/:email', async(req, res)=>{
+    app.get('/admin/:email', verifyJWT, verifyAdmin, async(req, res)=>{
       const email = req.params.email;
       const user = await userCollection.findOne({email:email});
       const isAdmin = user.role === 'admin';
